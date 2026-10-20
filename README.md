@@ -106,7 +106,7 @@ Abre otra terminal en la raíz del proyecto y ejecuta:
 
 * **Envío continuo al Worker desplegado en Cloudflare:**
   ```powershell
-  while ($true) { java -cp bin socket.sinconexion.simplex.EmisorWorker https://sistemas-distribuidos-receptor.<tu-usuario>.workers.dev; Start-Sleep -Seconds 3 }
+  while ($true) { java -cp bin socket.sinconexion.simplex.EmisorWorker https://sistemas-distribuidos-receptor.jbdb-backend.workers.dev; Start-Sleep -Seconds 3 }
   ```
 
 ---
