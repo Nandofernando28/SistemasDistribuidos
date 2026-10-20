@@ -1,9 +1,8 @@
 /**
- * Receptor de Telemetria en Cloudflare Workers
+ * Receptor de Telemetria en Cloudflare Workers - Modo Terminal
  * Repositorio: SistemasDistribuidos (Nandofernando28)
  */
 
-// Buffer en memoria para la ultima metrica y el historial
 let estadoActual = {
   ultimaActualizacion: null,
   ipRemitente: null,
@@ -16,19 +15,17 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // Cabeceras CORS comunes
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, User-Agent",
     };
 
-    // Manejo de preflight CORS
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    // ENDPOINT 1: Recibir metricas (POST / o POST /api/metricas)
+    // ENDPOINT POST: Recibir mensajes / metricas desde Java
     if (request.method === "POST") {
       try {
         const rawBody = await request.text();
@@ -54,36 +51,27 @@ export default {
           datos: datosParseados
         };
 
-        // Actualizar estado en memoria
         estadoActual.ultimaActualizacion = timestamp;
         estadoActual.ipRemitente = ip;
         estadoActual.ubicacion = `${ciudad}, ${pais}`;
         estadoActual.metricas = datosParseados;
 
-        // Mantener los ultimos 20 registros
+        // Guardar ultimos 50 mensajes en el buffer
         estadoActual.historial.unshift(registro);
-        if (estadoActual.historial.length > 20) {
+        if (estadoActual.historial.length > 50) {
           estadoActual.historial.pop();
         }
 
-        // Log en consola (visible con `wrangler tail` o en el panel de Cloudflare)
-        console.log(`[RECEPTOR WORKER] Metricas recibidas de ${ip} (${ciudad}, ${pais}):`, rawBody);
+        console.log(`[ORIGEN: ${ip} | ${ciudad}, ${pais}] Mensaje:`, rawBody);
 
         return new Response(
           JSON.stringify({
             status: "exito",
-            mensaje: "Metricas recibidas y procesadas por el Worker Receptor",
+            mensaje: "Mensaje recibido correctamente por el Worker Receptor",
             ipOrigen: ip,
-            ubicacion: `${ciudad}, ${pais}`,
             timestamp
           }),
-          {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json"
-            }
-          }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch (err) {
         return new Response(
@@ -93,9 +81,9 @@ export default {
       }
     }
 
-    // ENDPOINT 2: API JSON para consultar las metricas actuales
+    // ENDPOINT GET /api/metricas: Consulta de mensajes
     if (url.pathname === "/api/metricas") {
-      return new Response(JSON.stringify(estadoActual, null, 2), {
+      return new Response(JSON.stringify(estadoActual), {
         status: 200,
         headers: {
           ...corsHeaders,
@@ -105,9 +93,9 @@ export default {
       });
     }
 
-    // ENDPOINT 3: Dashboard Web interactivo en tiempo real (GET /)
+    // ENDPOINT GET /: Terminal interactiva en el navegador
     if (request.method === "GET") {
-      const html = renderizarDashboard(url.origin);
+      const html = renderizarTerminal(url.origin);
       return new Response(html, {
         status: 200,
         headers: {
@@ -117,494 +105,184 @@ export default {
       });
     }
 
-    return new Response("Ruta no encontrada", { status: 404 });
+    return new Response("404 Not Found", { status: 404 });
   }
 };
 
 /**
- * Genera la interfaz del Dashboard Web
+ * Vista de Terminal simple, directa y minimalista
  */
-function renderizarDashboard(originUrl) {
+function renderizarTerminal(originUrl) {
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Receptor Cloudflare Worker | Sistemas Distribuidos</title>
+  <title>Receptor | Terminal Cloudflare Worker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #090d16;
-      --card-bg: rgba(22, 29, 47, 0.7);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --accent: #f6821f; /* Cloudflare Orange */
-      --accent-glow: rgba(246, 130, 31, 0.25);
-      --cyan: #06b6d4;
-      --purple: #8b5cf6;
-      --green: #10b981;
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
-    }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
-      background-color: var(--bg);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(246, 130, 31, 0.12) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.1) 0px, transparent 50%);
-      color: var(--text);
-      font-family: 'Outfit', sans-serif;
+      background-color: #0b0f17;
+      color: #e6edf3;
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      padding: 1.5rem;
       min-height: 100vh;
-      padding: 2rem 1rem;
-    }
-
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-
-    header {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-      padding-bottom: 1.5rem;
-      border-bottom: 1px solid var(--card-border);
-      flex-wrap: wrap;
-      gap: 1rem;
+      justify-content: center;
+      align-items: flex-start;
     }
-
-    .title-area h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      letter-spacing: -0.5px;
+    .terminal {
+      width: 100%;
+      max-width: 950px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.7);
+    }
+    .header {
+      background: #161b22;
+      padding: 0.65rem 1rem;
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      border-bottom: 1px solid #30363d;
+      user-select: none;
     }
-
-    .badge-cf {
-      background: linear-gradient(135deg, #f6821f, #faad3f);
-      color: #000;
-      font-size: 0.75rem;
-      font-weight: 700;
-      padding: 0.2rem 0.6rem;
-      border-radius: 9999px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .subtitle {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-top: 0.25rem;
-    }
-
-    .status-pill {
+    .dots {
       display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: var(--green);
-      padding: 0.45rem 1rem;
-      border-radius: 9999px;
+      gap: 7px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+    .title {
+      flex: 1;
+      text-align: center;
+      color: #8b949e;
       font-size: 0.85rem;
       font-weight: 500;
     }
-
-    .status-dot {
+    .body {
+      padding: 1.25rem;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      height: 75vh;
+      overflow-y: auto;
+      background: #090d13;
+    }
+    .line {
+      margin-bottom: 0.35rem;
+      word-break: break-all;
+    }
+    .prompt { color: #58a6ff; font-weight: 600; }
+    .success { color: #3fb950; font-weight: 600; }
+    .info { color: #79c0ff; }
+    .dim { color: #484f58; }
+    .origin { color: #bc8cff; font-weight: 600; }
+    .msg-label { color: #38bdf8; font-weight: 600; }
+    .msg-text { color: #f0883e; }
+    .cursor {
+      display: inline-block;
       width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      animation: pulse 1.5s infinite;
+      height: 16px;
+      background: #3fb950;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+      margin-left: 4px;
     }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
-    }
-
-    .endpoint-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      backdrop-filter: blur(12px);
-      border-radius: 16px;
-      padding: 1.25rem 1.5rem;
-      margin-bottom: 2rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .endpoint-info code {
-      font-family: 'JetBrains Mono', monospace;
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.1);
-      padding: 0.3rem 0.6rem;
-      border-radius: 6px;
-      font-size: 0.9rem;
-    }
-
-    .copy-btn {
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text);
-      border: 1px solid var(--card-border);
-      padding: 0.45rem 1rem;
-      border-radius: 8px;
-      font-family: inherit;
-      font-size: 0.85rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .copy-btn:hover {
-      background: rgba(255, 255, 255, 0.16);
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .metric-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      backdrop-filter: blur(12px);
-      border-radius: 18px;
-      padding: 1.5rem;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.2s, border-color 0.2s;
-    }
-
-    .metric-card:hover {
-      transform: translateY(-2px);
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
-    .metric-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-
-    .metric-title {
-      font-size: 0.9rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-
-    .metric-icon {
-      font-size: 1.3rem;
-    }
-
-    .metric-value {
-      font-size: 2.2rem;
-      font-weight: 700;
-      letter-spacing: -1px;
-      margin-bottom: 0.75rem;
-    }
-
-    .progress-bar-bg {
-      width: 100%;
-      height: 8px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 9999px;
-      overflow: hidden;
-      margin-bottom: 0.75rem;
-    }
-
-    .progress-fill {
-      height: 100%;
-      width: 0%;
-      border-radius: 9999px;
-      transition: width 0.5s ease;
-    }
-
-    .fill-cpu { background: linear-gradient(90deg, #f6821f, #ef4444); }
-    .fill-ram { background: linear-gradient(90deg, #8b5cf6, #3b82f6); }
-    .fill-disk { background: linear-gradient(90deg, #06b6d4, #10b981); }
-
-    .metric-footer {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .info-section {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 18px;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .section-title {
-      font-size: 1.1rem;
-      font-weight: 600;
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      background: rgba(0, 0, 0, 0.2);
-      padding: 1rem;
-      border-radius: 12px;
-    }
-
-    .meta-item .meta-label {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      font-weight: 600;
-      margin-bottom: 0.2rem;
-    }
-
-    .meta-item .meta-val {
-      font-size: 0.95rem;
-      font-family: 'JetBrains Mono', monospace;
-      color: #e2e8f0;
-    }
-
-    .history-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-      margin-top: 1rem;
-    }
-
-    .history-table th {
-      text-align: left;
-      padding: 0.75rem;
-      color: var(--text-muted);
-      border-bottom: 1px solid var(--card-border);
-      font-weight: 600;
-    }
-
-    .history-table td {
-      padding: 0.75rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      font-family: 'JetBrains Mono', monospace;
-      color: #cbd5e1;
-    }
-
-    .no-data {
-      text-align: center;
-      padding: 2.5rem;
-      color: var(--text-muted);
-      font-size: 0.95rem;
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="title-area">
-        <h1>
-          Receptor Telemetría
-          <span class="badge-cf">Cloudflare Worker</span>
-        </h1>
-        <p class="subtitle">Sistemas Distribuidos &bull; Repositorio GitHub: <strong>Nandofernando28/SistemasDistribuidos</strong></p>
+  <div class="terminal">
+    <div class="header">
+      <div class="dots">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
       </div>
-      <div class="status-pill" id="statusIndicator">
-        <div class="status-dot"></div>
-        <span id="statusText">Worker Online &bull; Escuchando</span>
-      </div>
-    </header>
-
-    <div class="endpoint-card">
-      <div class="endpoint-info">
-        <span style="color: var(--text-muted); font-size: 0.85rem; display: block; margin-bottom: 0.3rem;">URL del Receptor para el Emisor Java:</span>
-        <code id="endpointUrl">${originUrl}</code>
-      </div>
-      <button class="copy-btn" onclick="copiarUrl()">📋 Copiar URL</button>
+      <div class="title">receptor@cloudflare-worker:~ (Sistemas Distribuidos)</div>
     </div>
-
-    <div class="grid">
-      <!-- CPU -->
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Carga de CPU</span>
-          <span class="metric-icon">⚡</span>
-        </div>
-        <div class="metric-value" id="valCpu">-- %</div>
-        <div class="progress-bar-bg">
-          <div class="progress-fill fill-cpu" id="barCpu"></div>
-        </div>
-        <div class="metric-footer">
-          <span>Uso de procesamiento</span>
-          <span id="subCpu">Esperando reporte...</span>
-        </div>
-      </div>
-
-      <!-- RAM -->
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Memoria RAM</span>
-          <span class="metric-icon">🧠</span>
-        </div>
-        <div class="metric-value" id="valRam">-- GB</div>
-        <div class="progress-bar-bg">
-          <div class="progress-fill fill-ram" id="barRam"></div>
-        </div>
-        <div class="metric-footer">
-          <span id="subRamLabel">Usada / Total</span>
-          <span id="subRam">-- / -- GB</span>
-        </div>
-      </div>
-
-      <!-- DISCO -->
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Disco Local</span>
-          <span class="metric-icon">💾</span>
-        </div>
-        <div class="metric-value" id="valDisk">-- GB</div>
-        <div class="progress-bar-bg">
-          <div class="progress-fill fill-disk" id="barDisk"></div>
-        </div>
-        <div class="metric-footer">
-          <span>Ocupación de disco C:</span>
-          <span id="subDisk">-- / -- GB</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Metadata del Emisor -->
-    <div class="info-section">
-      <div class="section-title">📡 Datos de Conexión del Emisor</div>
-      <div class="meta-grid">
-        <div class="meta-item">
-          <div class="meta-label">IP del Emisor</div>
-          <div class="meta-val" id="metaIp">--</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">Ubicación Geo / Edge</div>
-          <div class="meta-val" id="metaUbicacion">--</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">Último Reporte Recibido</div>
-          <div class="meta-val" id="metaHora">Ninguno todavía</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">Frecuencia de Actualización</div>
-          <div class="meta-val">Auto-refresco (2s)</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Historial -->
-    <div class="info-section">
-      <div class="section-title">📜 Registro de Telemetría Recibida</div>
-      <div style="overflow-x: auto;">
-        <table class="history-table">
-          <thead>
-            <tr>
-              <th>Hora</th>
-              <th>IP Origen</th>
-              <th>Ubicación</th>
-              <th>Resumen de Métricas / Mensaje</th>
-            </tr>
-          </thead>
-          <tbody id="historyBody">
-            <tr>
-              <td colspan="4" class="no-data">Esperando que el Emisor Java comience a enviar datos...</td>
-            </tr>
-          </tbody>
-        </table>
+    <div class="body" id="termBody">
+      <div class="line"><span class="prompt">nando@servidor:~$</span> ./iniciar-receptor</div>
+      <div class="line"><span class="info">[SISTEMAS DISTRIBUIDOS]</span> Receptor inicializado en Cloudflare Workers</div>
+      <div class="line"><span class="info">[URL RECEPTOR]</span> ${originUrl}</div>
+      <div class="line"><span class="success">[ESTADO]</span> Esperando mensajes de EmisorWorker.java...</div>
+      <div class="line dim">--------------------------------------------------------------------------------</div>
+      <div id="logs"></div>
+      <div class="line" style="margin-top: 0.6rem;">
+        <span class="prompt">receptor&gt;</span> <span class="cursor"></span>
       </div>
     </div>
   </div>
 
   <script>
-    function copiarUrl() {
-      const url = document.getElementById('endpointUrl').innerText;
-      navigator.clipboard.writeText(url).then(() => {
-        alert('URL copiada: ' + url + '\\nPégala en el comando de tu Emisor Java.');
-      });
-    }
+    let ultimoId = 0;
+    const logsEl = document.getElementById('logs');
+    const termBody = document.getElementById('termBody');
 
-    async function actualizarDatos() {
+    async function cargarMensajes() {
       try {
         const res = await fetch('/api/metricas');
         const data = await res.json();
 
-        if (data.metricas) {
-          const m = data.metricas;
-          
-          // CPU
-          if (typeof m.cpu === 'number') {
-            document.getElementById('valCpu').innerText = m.cpu.toFixed(1) + ' %';
-            document.getElementById('barCpu').style.width = Math.min(100, m.cpu) + '%';
-            document.getElementById('subCpu').innerText = 'Carga normal del sistema';
-          }
+        if (data.historial && data.historial.length > 0) {
+          // Invertir para mostrar de mas antiguo a mas reciente
+          const lista = [...data.historial].reverse();
+          let nuevos = false;
 
-          // RAM
-          if (m.ramUsadaGB && m.ramTotalGB) {
-            document.getElementById('valRam').innerText = m.ramUsadaGB.toFixed(2) + ' GB';
-            const ramPct = (m.ramUsadaGB / m.ramTotalGB) * 100;
-            document.getElementById('barRam').style.width = Math.min(100, ramPct) + '%';
-            document.getElementById('subRam').innerText = m.ramUsadaGB.toFixed(2) + ' / ' + m.ramTotalGB.toFixed(2) + ' GB';
-          }
+          lista.forEach(item => {
+            if (item.id > ultimoId) {
+              nuevos = true;
+              ultimoId = item.id;
 
-          // Disco
-          if (m.discoUsadoGB && m.discoTotalGB) {
-            document.getElementById('valDisk').innerText = m.discoUsadoGB.toFixed(1) + ' GB';
-            const diskPct = (m.discoUsadoGB / m.discoTotalGB) * 100;
-            document.getElementById('barDisk').style.width = Math.min(100, diskPct) + '%';
-            document.getElementById('subDisk').innerText = m.discoUsadoGB.toFixed(1) + ' / ' + m.discoTotalGB.toFixed(1) + ' GB';
-          }
+              const hora = new Date(item.timestamp).toLocaleTimeString();
+              const contenido = item.datos.resumen || item.datos.mensaje || JSON.stringify(item.datos);
 
-          // Metadatos
-          document.getElementById('metaIp').innerText = data.ipRemitente || '--';
-          document.getElementById('metaUbicacion').innerText = data.ubicacion || '--';
-          if (data.ultimaActualizacion) {
-            const fecha = new Date(data.ultimaActualizacion);
-            document.getElementById('metaHora').innerText = fecha.toLocaleTimeString();
-          }
+              const bloque = document.createElement('div');
+              bloque.style.marginBottom = '0.75rem';
+              bloque.innerHTML = 
+                '<div class="line">' +
+                  '<span class="dim">[' + hora + ']</span> ' +
+                  '<span class="origin">Origen: ' + item.ipRemitente + ' (' + item.ubicacion + ')</span>' +
+                '</div>' +
+                '<div class="line" style="padding-left: 1rem;">' +
+                  '<span class="msg-label">Mensaje:</span> <span class="msg-text">' + escapeHtml(contenido) + '</span>' +
+                '</div>' +
+                '<div class="line dim">--------------------------------------------------------------------------------</div>';
 
-          // Historial
-          if (data.historial && data.historial.length > 0) {
-            const tbody = document.getElementById('historyBody');
-            tbody.innerHTML = data.historial.map(item => {
-              const h = new Date(item.timestamp).toLocaleTimeString();
-              const detalle = item.datos.resumen || item.datos.mensaje || JSON.stringify(item.datos);
-              return '<tr>' +
-                '<td>' + h + '</td>' +
-                '<td>' + item.ipRemitente + '</td>' +
-                '<td>' + item.ubicacion + '</td>' +
-                '<td>' + detalle + '</td>' +
-                '</tr>';
-            }).join('');
+              logsEl.appendChild(bloque);
+            }
+          });
+
+          if (nuevos) {
+            termBody.scrollTop = termBody.scrollHeight;
           }
         }
-      } catch (err) {
-        console.error('Error al actualizar metricas:', err);
+      } catch (e) {
+        console.error('Error:', e);
       }
     }
 
-    // Polling cada 2 segundos
-    setInterval(actualizarDatos, 2000);
-    actualizarDatos();
+    function escapeHtml(str) {
+      const p = document.createElement('p');
+      p.innerText = str;
+      return p.innerHTML;
+    }
+
+    setInterval(cargarMensajes, 1500);
+    cargarMensajes();
   </script>
 </body>
 </html>`;
