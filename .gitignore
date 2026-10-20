@@ -1,0 +1,23 @@
+# Compilacion Java
+bin/
+*.class
+
+# Dependencias Node.js y Cloudflare Wrangler
+node_modules/
+.wrangler/
+dist/
+
+# Variables de entorno
+.env
+.env.*
+
+# Archivos del sistema y logs
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.iml

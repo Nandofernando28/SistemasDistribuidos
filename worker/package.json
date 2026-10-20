@@ -1,0 +1,22 @@
+{
+  "name": "sistemas-distribuidos-receptor",
+  "version": "1.0.0",
+  "description": "Receptor de telemetria en Cloudflare Workers para Sistemas Distribuidos",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "sistemas-distribuidos",
+    "telemetria",
+    "receptor"
+  ],
+  "author": "Nandofernando28",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.114.0"
+  }
+}
