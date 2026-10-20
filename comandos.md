@@ -1,5 +1,5 @@
 # Comandos de Compilación General
-javac -d bin MetricasSistema.java Emisor.java Receptor.java ReceptorEmisor.java EmisorWorker.java
+javac -d bin MetricasSistema.java Emisor.java Receptor.java EmisorWorker.java
 
 ---
 
